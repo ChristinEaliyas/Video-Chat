@@ -1,5 +1,5 @@
-import firebase from 'firebase/app'
-import 'firebase/firestore'
+import { firebase } from 'firebase/app';
+import 'firebase/firestore';
 import { snapshotEqual } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -107,7 +107,7 @@ answerButton.onclick = async () => {
 
     pc.onicecandidate = event => {
         event.candidate && answerCandidates.add(event.candidates.toJSON());
-    }
+    };
 
     const callData = (await callDoc.get()).data();
 
@@ -123,4 +123,59 @@ answerButton.onclick = async () => {
     };
 
     await callDoc.update({ answer });
+
+    callDoc.onSnapshot((snapshot) => {
+        const data = snapshot();
+        if (!pc.currentRemoteDescription && data?.answer) {
+            const answerDescription = new RTCSessionDescription();
+            pc.setRemoteDescription(answerDescription);
+        }
+    });
+
+    answerCandidates.onSnapshot(snapshot => {
+        snapshot.docChanges().forEach((change) =>{
+            if (change.type === 'added') {
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate)
+            }
+        });
+    });
+
+};
+
+answerButton.onclick = async () => {
+    const callId = callInput.value;
+    const callDoc = firestore.collection('calls').doc(callId);
+    const answerCandidates = callDoc.collection('answerCandidates');
+
+    pc.onicecandidate = event => {
+        event.candidate && answerCandidates.add(event.candidate.toJSON());
+    };
+
+    const callData = (await callDoc.get()).data();
+
+    const offerDescription = callData.offer;
+    await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
+    const answerDescription = await pc.createAnswer();
+    await pc.setLocalDescription(answerDescription);
+
+    const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+    };
+
+    await callDoc.update({ answer });
+
+    offerCandidates.onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            console.log(change)
+            if (change.type === 'added') {
+                let data = change.doc.data();
+                pc.addIceCandidate(new RTCIceCandidate(data));
+            }
+        });
+    });
+
+
 };
