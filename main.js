@@ -1,5 +1,5 @@
-import { firebase } from 'firebase/app';
-import 'firebase/firestore';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { snapshotEqual } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -12,11 +12,11 @@ const firebaseConfig = {
   measurementId: "G-NZ0PF9NTXP"
 };
 
-if (!firebase.getApps.length) {
+if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-const firestore = firebase.firestore()
+const firestore = firebase.firestore();
 
 const servers = {
     iceServers: [
@@ -41,12 +41,13 @@ const remoteVideo = document.getElementById("remoteVideo");
 const hangupButton = document.getElementById("hangupButton");
 
 webcamButton.onclick = async () => {
+
     localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
     remoteStream = new MediaStream();
 
-    localStream.getTracks().forEach((track) =>{
-        pc.addTrack(track, localStream);
-    });
+    // localStream.getTracks().forEach((track) =>{
+    //     pc.addTrack(track, localStream);
+    // }); 
 
     pc.ontrack = event => {
         event.streams[0].getTracks().forEach(track => {
@@ -54,8 +55,26 @@ webcamButton.onclick = async () => {
         });
     };
 
-    webcamVideo.srcObject = localStream;
+    var element = document.getElementById("webcamButton");
+    if (element.classList.contains("active")) {
+        element.classList.remove("active");
+        localStream.getVideoTracks().forEach(function (track) {
+            track.stop();
+        });
+        // webcamVideo.srcObject = null;
+    } else {
+        element.classList.add("active");
+        localStream.getTracks().forEach((track) =>{
+            pc.addTrack(track, localStream);
+        }); 
+        webcamVideo.srcObject = localStream;
+    }
+
+    
+    
     remoteVideo.srcObject = remoteStream;
+    
+
 };
 
 
@@ -147,6 +166,7 @@ answerButton.onclick = async () => {
     const callId = callInput.value;
     const callDoc = firestore.collection('calls').doc(callId);
     const answerCandidates = callDoc.collection('answerCandidates');
+    const offerCandidates = callDoc.collection('offerCandidates');
 
     pc.onicecandidate = event => {
         event.candidate && answerCandidates.add(event.candidate.toJSON());
